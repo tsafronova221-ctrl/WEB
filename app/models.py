@@ -1,5 +1,9 @@
 from . import db
-from datetime import datetime
+from datetime import datetime, timezone
+import pytz
+
+# Часовой пояс Москвы
+MSK = pytz.timezone('Europe/Moscow')
 
 
 class Group(db.Model):
@@ -71,8 +75,8 @@ class Attempt(db.Model):
     student_id = db.Column(db.Integer, db.ForeignKey("students.id"))
     lab_id = db.Column(db.Integer, db.ForeignKey("labs.id"))
     password_id = db.Column(db.Integer, db.ForeignKey("lab_passwords.id"))  # ← тут главное изменение
-    started_at = db.Column(db.DateTime, default=datetime.utcnow)
-    finished_at = db.Column(db.DateTime)
+    started_at = db.Column(db.DateTime, default=lambda: datetime.now(MSK))
+    finished_at = db.Column(db.DateTime, default=None)
     ip = db.Column(db.String(64))
     user_agent = db.Column(db.String(256))
     score = db.Column(db.Integer)

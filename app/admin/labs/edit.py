@@ -115,11 +115,11 @@ def update_lab(lab_id):
     start_dt = datetime.fromisoformat(data['start_date'])
     deadline_dt = datetime.fromisoformat(data['deadline'])
     
-    # Если даты без timezone info, считаем что это время по Москве
+    # Если даты без timezone info, считаем что это время по Москве и сохраняем без tzinfo
     if start_dt.tzinfo is None:
-        start_dt = MSK.localize(start_dt)
+        start_dt = MSK.localize(start_dt).replace(tzinfo=None)  # Сохраняем как naive datetime
     if deadline_dt.tzinfo is None:
-        deadline_dt = MSK.localize(deadline_dt)
+        deadline_dt = MSK.localize(deadline_dt).replace(tzinfo=None)  # Сохраняем как naive datetime
     
     lab.title = data['name']
     lab.description = data['description']
