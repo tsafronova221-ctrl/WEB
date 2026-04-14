@@ -121,9 +121,14 @@ def start():
         from datetime import timedelta
         now = datetime.now(MSK)  # Используем московское время
         
+        # Приводим started_at к тому же формату (с часовым поясом)
+        attempt_started = existing_attempt.started_at
+        if attempt_started.tzinfo is None:
+            attempt_started = MSK.localize(attempt_started)
+        
         # Если попытка была начата очень давно (больше 24 часов назад), считаем её "заброшенной"
         # и разрешаем создать новую (это защита от зависших попыток)
-        if (now - existing_attempt.started_at).total_seconds() > 24 * 3600:
+        if (now - attempt_started).total_seconds() > 24 * 3600:
             # Удаляем старую заброшенную попытку и создаем новую
             db.session.delete(existing_attempt)
             db.session.commit()
@@ -131,7 +136,7 @@ def start():
         elif lab.is_test and lab.test_duration and lab.test_duration > 0:
             # Вычисляем время начала попытки с учетом длительности теста
             # Студент должен уложиться в test_duration минут с момента started_at
-            elapsed = now - existing_attempt.started_at
+            elapsed = now - attempt_started
             max_duration_seconds = lab.test_duration * 60
             
             if elapsed.total_seconds() >= max_duration_seconds:

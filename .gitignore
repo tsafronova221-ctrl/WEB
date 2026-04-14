@@ -5,41 +5,26 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Database
-instance/
-*.db
-
-# Dependencies
-.venv/
-venv/
-env/
-
-# Logs
+# Logs and temp files
 *.log
+*.tmp
 
-# Environment variables
+# Environment
 .env
 .env.local
 *.env.*
 
-# Editor
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
 
-# OS
-.DS_Store
-Thumbs.db
+# Dependencies
+.venv/
+venv/
+node_modules/
 
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# Build
-build/
+# Build artifacts
 dist/
-*.egg-info/
+build/
+target/
 ```
