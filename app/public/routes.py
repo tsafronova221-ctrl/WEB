@@ -69,10 +69,16 @@ def start():
     
     # Проверка дедлайнов (перенес выше, до создания студента)
     now = datetime.now(MSK)  # Используем московское время для всех проверок
-    if lab.start_at and lab.start_at > now:
+    
+    # Приводим даты из БД к московскому времени с правильным часовым поясом
+    # Используем localize вместо replace, чтобы получить правильное смещение +03:00
+    start_at = MSK.localize(lab.start_at) if lab.start_at and lab.start_at.tzinfo is None else lab.start_at
+    deadline_at = MSK.localize(lab.deadline_at) if lab.deadline_at and lab.deadline_at.tzinfo is None else lab.deadline_at
+    
+    if start_at and start_at > now:
         return render_template("public/index.html", groups=all_groups, error="Время выполнения работы еще не наступило")
 
-    if lab.deadline_at and now > lab.deadline_at:
+    if deadline_at and now > deadline_at:
         return render_template("public/index.html", groups=all_groups, error="Срок сдачи работы истек")
 
     # 2. Ищем или создаём студента
