@@ -129,25 +129,19 @@
     const testDurationMinutes = {{ lab.test_duration or 0 }};
     const attemptId = {{ attempt.id }};
     
+    // Серверное время начала попытки (в миллисекундах)
+    const serverStartTime = {{ attempt.started_at.timestamp() * 1000 }};
+    
     // Ключи для localStorage
-    const startTimeKey = 'attempt_' + attemptId + '_startTime';
     const violationsKey = 'attempt_' + attemptId + '_violations';
     
     let tabSwitchCount = 0;
     let copyDetected = false;
     let fullscreenExitCount = 0;
     
-    // Инициализация времени начала
-    function initStartTime() {
-        if (!localStorage.getItem(startTimeKey)) {
-            localStorage.setItem(startTimeKey, Date.now().toString());
-        }
-    }
-    
-    // Получение elapsed времени в секундах
+    // Получение elapsed времени в секундах (от серверного времени начала)
     function getElapsedTime() {
-        const startTime = parseInt(localStorage.getItem(startTimeKey));
-        return Math.floor((Date.now() - startTime) / 1000);
+        return Math.floor((Date.now() - serverStartTime) / 1000);
     }
     
     // Форматирование времени MM:SS
@@ -271,9 +265,6 @@
         }
     }
     
-    // Инициализация
-    initStartTime();
-    
     if (labIsTest) {
         trackTabSwitches();
         trackCopy();
@@ -318,7 +309,6 @@
             this.appendChild(hiddenFullscreen);
             
             // Очищаем localStorage
-            localStorage.removeItem(startTimeKey);
             localStorage.removeItem(violationsKey);
         }
     });

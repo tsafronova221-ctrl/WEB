@@ -4,26 +4,42 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.Python
+env/
+venv/
+.venv/
+.ENV
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Database
-instance/app.db
+# Logs
+*.log
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
 
 # Environment
 .env
 .env.local
 .env.*
+.env~*
 
-# Dependencies
-venv/
-.venv/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
 
-# Migrations cache
-migrations/versions/__pycache__/
-
-# Logs
-*.log
-
-# OS generated files
+# OS
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
 ```

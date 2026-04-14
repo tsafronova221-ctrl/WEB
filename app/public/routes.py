@@ -62,7 +62,7 @@ def start():
                 error="Эта работа недоступна для выбранной группы",
             )
     # -------------------------------------
-
+    
     # Проверка дедлайнов (перенес выше, до создания студента)
     now = datetime.now()  # Или datetime.utcnow(), в зависимости от настроек вашего сервера
     if lab.start_at and lab.start_at > now:
@@ -88,6 +88,55 @@ def start():
         )
         db.session.add(student)
         db.session.commit()
+
+    # === ПРОВЕРКА НА АКТИВНУЮ ПОПЫТКУ ===
+    # Ищем незавершенную попытку для этого студента и этой работы
+    existing_attempt = Attempt.query.filter_by(
+        student_id=student.id,
+        lab_id=lab.id,
+        password_id=lp.id
+    ).filter(Attempt.finished_at == None).first()
+    
+    if existing_attempt:
+        # Если есть активная попытка - проверяем, не истекло ли время
+        if lab.is_test and lab.test_duration and lab.test_duration > 0:
+            from datetime import timedelta
+            elapsed = datetime.utcnow() - existing_attempt.started_at
+            if elapsed.total_seconds() >= lab.test_duration * 60:
+                # Время истекло - завершаем попытку автоматически
+                existing_attempt.finished_at = datetime.utcnow()
+                existing_attempt.score = 0
+                db.session.commit()
+                # Возвращаем ошибку, что время вышло
+                return render_template(
+                    "public/index.html",
+                    groups=all_groups,
+                    error="Время на выполнение работы истекло. Вы не можете начать новую попытку.",
+                )
+        
+        # Если время еще есть - перенаправляем на продолжение
+        lab_file = LabFile.query.get(lp.file_id)
+        
+        # Получаем вопросы для этой попытки
+        question_ids = [answer.question_id for answer in existing_attempt.answers]
+        questions = Question.query.filter(Question.id.in_(question_ids)).all()
+        
+        # Сохраняем порядок вопросов как в attempt.answers
+        questions_ordered = []
+        for ans in existing_attempt.answers:
+            for q in questions:
+                if q.id == ans.question_id:
+                    questions_ordered.append(q)
+                    break
+        
+        return render_template(
+            "public/questions.html",
+            attempt=existing_attempt,
+            lab_file=lab_file,
+            questions=questions_ordered,
+            lab=lab
+        )
+    # ====================================
 
     lab_file = LabFile.query.get(lp.file_id)
 
@@ -142,44 +191,25 @@ def finish(attempt_id):
     
     # ===== ЗАЩИТА ОТ ПОВТОРНОЙ ОТПРАВКИ =====
     # Если попытка уже была завершена (finished_at заполнено),
-    # то студент вернулся назад и пытается пройти заново
+    # то просто показываем страницу завершения с данными этой попытки
     if attempt.finished_at is not None:
-        # Создаем новую попытку вместо перезаписи старой
+        # Не создаем новую попытку, а просто показываем результаты старой
+        lab_file_id = attempt.password.file_id
+        correct_map = {
+            fqa.question_id: fqa.correct_answer
+            for fqa in FileQuestionAnswer.query.filter_by(lab_file_id=lab_file_id)
+        }
+
+        results_list = []
+        for answer_record in attempt.answers:
+            q = answer_record.question
+            correct_text = (correct_map.get(q.id) or "").strip()
+            if answer_record.is_correct:
+                results_list.append(['correct', q.text])
+            else:
+                results_list.append(['wrong', q.text])
         
-        # Получаем данные из старой попытки
-        old_student_id = attempt.student_id
-        old_lab_id = attempt.lab_id
-        old_password_id = attempt.password_id
-        
-        # Создаем новую попытку
-        new_attempt = Attempt(
-            student_id=old_student_id,
-            lab_id=old_lab_id,
-            password_id=old_password_id,
-            ip=request.remote_addr,
-            user_agent=request.headers.get("User-Agent"),
-            started_at=datetime.utcnow(),
-        )
-        db.session.add(new_attempt)
-        db.session.flush()
-        
-        # Получаем вопросы из старой попытки
-        old_question_ids = [answer.question_id for answer in attempt.answers]
-        
-        # Создаем пустые ответы для новой попытки с теми же вопросами
-        for q_id in old_question_ids:
-            empty_answer = Answer(
-                attempt_id=new_attempt.id,
-                question_id=q_id,
-                answer_text="",
-                is_correct=False
-            )
-            db.session.add(empty_answer)
-        
-        db.session.commit()
-        
-        # Теперь работаем с новой попыткой
-        attempt = new_attempt
+        return render_template("public/finish.html", attempt=attempt, answers=results_list)
     # ========================================
     
     # ===== СОХРАНЕНИЕ ДАННЫХ О НАРУШЕНИЯХ =====
