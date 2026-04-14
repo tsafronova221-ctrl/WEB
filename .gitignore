@@ -1,7 +1,6 @@
 ```
-# Database files
-*.db
-instance/*.db
+# Database
+instance/
 
 # Python
 __pycache__/
@@ -12,28 +11,6 @@ __pycache__/
 env/
 venv/
 .venv/
-.ENV
 .env
 .env.local
-.env.*
-.venv/
-venv/
-ENV/
-.env.django
-.env.docker
-.env.local
-.env.sqlite
-.env.dev
-.env.test
-.env.prod
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.pytest_cache/
-.mypy_cache/
-.hypothesis/
 ```
