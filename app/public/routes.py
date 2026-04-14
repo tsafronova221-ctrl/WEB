@@ -119,11 +119,16 @@ def start():
             db.session.commit()
             # Продолжаем код ниже для создания новой попытки
         elif lab.is_test and lab.test_duration and lab.test_duration > 0:
+            # Вычисляем время начала попытки с учетом длительности теста
+            # Студент должен уложиться в test_duration минут с момента started_at
             elapsed = now - existing_attempt.started_at
             max_duration_seconds = lab.test_duration * 60
             
             if elapsed.total_seconds() >= max_duration_seconds:
-                # Время истекло - завершаем попытку автоматически
+                # Время истекло - завершаем попытку автоматически с сохранением нарушений
+                # Получаем данные о нарушениях из localStorage через JavaScript невозможно,
+                # поэтому берем то, что уже могло быть сохранено ранее (если было обновление)
+                # В данном случае просто фиксируем факт истечения времени
                 existing_attempt.finished_at = now
                 existing_attempt.score = 0
                 db.session.commit()
@@ -308,3 +313,40 @@ def finish(attempt_id):
     db.session.commit()
 
     return render_template("public/finish.html", attempt=attempt, answers=results_list)
+
+
+@public_bp.route("/auto-finish/<int:attempt_id>", methods=["POST"])
+def auto_finish(attempt_id):
+    """Автоматическое завершение попытки по истечении времени с сохранением нарушений"""
+    attempt = Attempt.query.get_or_404(attempt_id)
+    
+    # Если уже завершена - возвращаем ошибку
+    if attempt.finished_at is not None:
+        return redirect(url_for('public.finish', attempt_id=attempt_id))
+    
+    # ===== СОХРАНЕНИЕ ДАННЫХ О НАРУШЕНИЯХ =====
+    if attempt.lab.is_test:
+        # Получаем данные о нарушениях из формы
+        tab_switches = request.form.get('violation_tab_switch', 0, type=int)
+        copy_detected = request.form.get('violation_copy', '0') == '1'
+        fullscreen_exits = request.form.get('violation_fullscreen_exit', 0, type=int)
+        
+        # Сохраняем в базу данных
+        attempt.violation_tab_switch = tab_switches
+        attempt.violation_copy = copy_detected
+        attempt.violation_fullscreen_exit = fullscreen_exits
+    # ========================================
+    
+    # Завершаем попытку с нулевым баллом (так как время вышло)
+    attempt.score = 0
+    attempt.finished_at = datetime.utcnow()
+    attempt.watermark_hash = generate_watermark_hash(attempt)
+    db.session.commit()
+    
+    # Возвращаем JSON для AJAX запроса
+    from flask import jsonify
+    return jsonify({
+        'status': 'success',
+        'message': 'Время вышло, работа завершена автоматически',
+        'violations_saved': attempt.lab.is_test
+    })
