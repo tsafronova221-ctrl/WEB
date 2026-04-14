@@ -1,0 +1,29 @@
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Database
+instance/app.db
+
+# Environment
+.env
+.env.local
+.env.*
+
+# Dependencies
+venv/
+.venv/
+
+# Migrations cache
+migrations/versions/__pycache__/
+
+# Logs
+*.log
+
+# OS generated files
+.DS_Store
+Thumbs.db
+```
