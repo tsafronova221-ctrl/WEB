@@ -1,0 +1,298 @@
+﻿<html>
+<head>
+    <meta charset="UTF-8">
+    <title>{{ lab.title }}</title>
+    <style> body {
+        font-family: sans-serif;
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 0 20px;
+    }
+
+    .alert {
+        padding: 15px;
+        border-radius: 5px;
+        margin-bottom: 20px;
+    }
+
+    .alert-info {
+        background: #e7f3fe;
+        border: 1px solid #b6d4fe;
+        color: #084298;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        border: 1px solid #ffecb5;
+        color: #664d03;
+    }
+    
+    .alert-danger {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+    }
+
+    .question-box {
+        background: #f8f9fa;
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 5px;
+    }
+    
+    .timer-container {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: #2c3e50;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        font-size: 18px;
+        font-weight: bold;
+        z-index: 1000;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    
+    .timer-warning {
+        background: #e74c3c !important;
+        animation: pulse 1s infinite;
+    }
+    
+    @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.7; }
+        100% { opacity: 1; }
+    }
+    
+    .violation-toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #e74c3c;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        display: none;
+        z-index: 1001;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    </style>
+</head>
+<body>
+
+{% if lab.timer_duration and lab.timer_duration > 0 %}
+<div class="timer-container" id="timerContainer">
+    ⏱️ Осталось времени: <span id="timerDisplay">--:--</span>
+</div>
+{% endif %}
+
+<div class="violation-toast" id="violationToast"></div>
+
+<h2>{{ lab.title }}</h2>
+
+{% if lab.is_test %}
+    <div class="alert alert-warning">
+        <strong>Режим контрольной работы!</strong><br>
+        {% if lab.timer_duration and lab.timer_duration > 0 %}
+        <p>⏱️ Время на выполнение: {{ lab.timer_duration }} минут.</p>
+        {% endif %}
+        <p>⚠️ Запрещено:</p>
+        <ul>
+            <li>Переключаться на другие вкладки/окна</li>
+            <li>Сворачивать браузер</li>
+            <li>Использовать посторонние ресурсы</li>
+        </ul>
+        <p>Все нарушения фиксируются и отображаются при проверке!</p>
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        Это лабораторная работа. Необходимо ответить на все вопросы.
+    </div>
+{% endif %}
+
+<p>Скачайте файл задания:</p>
+<a href="{{ url_for('files', file_path=lab_file.file_path) }}" download>📥 Скачать файл задания</a>
+<hr>
+
+<form method="post" action="/finish/{{ attempt.id }}" id="questionsForm">
+    {% for q in questions %}
+        <div class="question-box">
+            <p><b>Вопрос {{ loop.index }}:</b> {{ q.text }}</p>
+            <input type="text" name="q{{ q.id }}" style="width: 100%; padding: 8px;" placeholder="Ваш ответ"
+                   autocomplete="off" required>
+        </div>
+    {% endfor %}
+    <br>
+    <button type="submit"
+            style="padding: 10px 20px; cursor: pointer; background: #28a745; color: white; border: none; border-radius: 5px; font-size: 16px;">
+        Завершить работу
+    </button>
+</form>
+
+<script>
+// ===== ТАЙМЕР =====
+{% if lab.timer_duration and lab.timer_duration > 0 %}
+(function() {
+    const attemptId = {{ attempt.id }};
+    const timerDurationMinutes = {{ lab.timer_duration }};
+    const storageKey = 'attempt_timer_' + attemptId;
+    const endTimeKey = 'attempt_endtime_' + attemptId;
+    
+    // Проверяем, есть ли сохраненное время окончания
+    let endTime = localStorage.getItem(endTimeKey);
+    
+    if (!endTime) {
+        // Если нет, устанавливаем новое время окончания
+        const now = Date.now();
+        endTime = now + (timerDurationMinutes * 60 * 1000);
+        localStorage.setItem(endTimeKey, endTime);
+    }
+    
+    endTime = parseInt(endTime);
+    
+    function updateTimer() {
+        const now = Date.now();
+        const remaining = Math.max(0, endTime - now);
+        
+        const minutes = Math.floor(remaining / (1000 * 60));
+        const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+        
+        const display = document.getElementById('timerDisplay');
+        const container = document.getElementById('timerContainer');
+        
+        display.textContent = 
+            String(minutes).padStart(2, '0') + ':' + 
+            String(seconds).padStart(2, '0');
+        
+        // Предупреждение когда осталось меньше 5 минут
+        if (remaining < 5 * 60 * 1000 && remaining > 0) {
+            container.classList.add('timer-warning');
+        }
+        
+        if (remaining <= 0) {
+            // Время истекло - блокируем форму и автоматически отправляем
+            display.textContent = '00:00';
+            container.classList.add('timer-warning');
+            
+            const form = document.getElementById('questionsForm');
+            const inputs = form.querySelectorAll('input');
+            inputs.forEach(input => input.disabled = true);
+            const submitBtn = form.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Время истекло';
+                submitBtn.style.background = '#e74c3c';
+            }
+            
+            // Автоматическая отправка формы
+            form.submit();
+        }
+    }
+    
+    // Обновляем таймер каждую секунду
+    updateTimer();
+    setInterval(updateTimer, 1000);
+})();
+{% endif %}
+
+// ===== АНТИСПИСЫВАНИЕ =====
+{% if lab.is_test %}
+(function() {
+    const attemptId = {{ attempt.id }};
+    const violationsKey = 'attempt_violations_' + attemptId;
+    let violations = JSON.parse(localStorage.getItem(violationsKey) || '[]');
+    
+    function logViolation(type, details) {
+        const violation = {
+            timestamp: new Date().toISOString(),
+            type: type,
+            details: details
+        };
+        violations.push(violation);
+        localStorage.setItem(violationsKey, JSON.stringify(violations));
+        
+        // Показываем предупреждение студенту
+        showToast('⚠️ Нарушение зафиксировано: ' + details);
+    }
+    
+    function showToast(message) {
+        const toast = document.getElementById('violationToast');
+        toast.textContent = message;
+        toast.style.display = 'block';
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 3000);
+    }
+    
+    // Отслеживание переключения вкладок
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            logViolation('tab_switch', 'Студент переключился на другую вкладку');
+        }
+    });
+    
+    // Отслеживание потери фокуса окна
+    window.addEventListener('blur', function() {
+        logViolation('window_blur', 'Окно браузера потеряло фокус');
+    });
+    
+    // Отслеживание попытки открыть контекстное меню (правая кнопка)
+    document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        logViolation('context_menu', 'Попытка открыть контекстное меню');
+        showToast('❌ Контекстное меню заблокировано');
+    });
+    
+    // Блокировка копирования
+    document.addEventListener('copy', function(e) {
+        e.preventDefault();
+        logViolation('copy_attempt', 'Попытка копирования текста');
+        showToast('❌ Копирование запрещено');
+    });
+    
+    // Блокировка вырезания
+    document.addEventListener('cut', function(e) {
+        e.preventDefault();
+        logViolation('cut_attempt', 'Попытка вырезания текста');
+        showToast('❌ Вырезание запрещено');
+    });
+    
+    // Блокировка вставки (опционально, можно убрать если мешает)
+    // document.addEventListener('paste', function(e) {
+    //     e.preventDefault();
+    //     logViolation('paste_attempt', 'Попытка вставки текста');
+    //     showToast('❌ Вставка запрещена');
+    // });
+    
+    // Отслеживание нажатия F12 (инструменты разработчика)
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && e.key === 'I') || 
+            (e.ctrlKey && e.shiftKey && e.key === 'C') || 
+            (e.ctrlKey && e.shiftKey && e.key === 'J') ||
+            (e.ctrlKey && e.key === 'U')) {
+            e.preventDefault();
+            logViolation('devtools_attempt', 'Попытка открыть инструменты разработчика');
+            showToast('❌ Инструменты разработчика заблокированы');
+        }
+    });
+    
+    // Сохраняем нарушения при отправке формы
+    document.getElementById('questionsForm').addEventListener('submit', function(e) {
+        // Добавляем нарушения как скрытое поле в форму
+        const hiddenInput = document.createElement('input');
+        hiddenInput.type = 'hidden';
+        hiddenInput.name = 'violations';
+        hiddenInput.value = JSON.stringify(violations);
+        this.appendChild(hiddenInput);
+        
+        // Очищаем localStorage после отправки
+        localStorage.removeItem(violationsKey);
+        localStorage.removeItem('attempt_endtime_' + attemptId);
+    });
+})();
+{% endif %}
+</script>
+</body>
+</html>
