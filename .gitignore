@@ -1,4 +1,8 @@
 ```
+# Database files
+*.db
+instance/*.db
+
 # Python
 __pycache__/
 *.pyc
@@ -9,37 +13,27 @@ env/
 venv/
 .venv/
 .ENV
-.venv.bak/
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Logs
-*.log
-
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# Environment
 .env
 .env.local
 .env.*
-.env~*
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
+.venv/
+venv/
+ENV/
+.env.django
+.env.docker
+.env.local
+.env.sqlite
+.env.dev
+.env.test
+.env.prod
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
 ```
