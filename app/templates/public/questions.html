@@ -208,11 +208,13 @@
         const timeDisplay = document.getElementById('timeRemaining');
         
         if (remainingSeconds <= 0) {
-            // Время истекло - автоматически отправляем форму
+            // Время истекло - автоматически отправляем форму через AJAX для сохранения нарушений
             timerBox.classList.add('warning');
             timeDisplay.textContent = '00:00';
             alert('Время вышло! Работа будет автоматически завершена.');
-            document.getElementById('quizForm').submit();
+            
+            // Вызываем функцию автозавершения с сохранением нарушений
+            submitViolationsAndFinish(true);
             return;
         }
         
@@ -326,9 +328,44 @@
     }
     
     // Отправка данных о нарушениях на сервер при завершении
+    function submitViolationsAndFinish(isAutoFinish) {
+        if (!labIsTest) return true;
+        
+        // Создаем FormData для отправки через fetch
+        const formData = new FormData();
+        formData.append('violation_tab_switch', tabSwitchCount);
+        formData.append('violation_copy', copyDetected ? '1' : '0');
+        formData.append('violation_fullscreen_exit', fullscreenExitCount);
+        
+        const finishUrl = isAutoFinish ? `/auto-finish/${attemptId}` : `/finish/${attemptId}`;
+        
+        // Отправляем данные через fetch (для автозавершения) или просто возвращаем true (для обычной формы)
+        if (isAutoFinish) {
+            return fetch(finishUrl, {
+                method: 'POST',
+                body: formData
+            }).then(response => response.json())
+              .then(data => {
+                  console.log('Auto-finish result:', data);
+                  // Очищаем localStorage
+                  localStorage.removeItem(violationsKey);
+                  localStorage.removeItem(remainingTimeKey);
+                  // Перенаправляем на страницу результатов
+                  window.location.href = `/finish/${attemptId}`;
+              })
+              .catch(error => {
+                  console.error('Error during auto-finish:', error);
+                  // В случае ошибки все равно перенаправляем
+                  window.location.href = `/finish/${attemptId}`;
+              });
+        }
+        
+        return true;
+    }
+    
     document.getElementById('quizForm').addEventListener('submit', function(e) {
         if (labIsTest) {
-            // Создаем скрытые поля с данными о нарушениях
+            // Добавляем скрытые поля с данными о нарушениях
             const hiddenTabSwitches = document.createElement('input');
             hiddenTabSwitches.type = 'hidden';
             hiddenTabSwitches.name = 'violation_tab_switch';
