@@ -64,7 +64,7 @@ def start():
     # -------------------------------------
     
     # Проверка дедлайнов (перенес выше, до создания студента)
-    now = datetime.now()  # Или datetime.utcnow(), в зависимости от настроек вашего сервера
+    now = datetime.utcnow()  # Используем utcnow везде для консистентности
     if lab.start_at and lab.start_at > now:
         return render_template("public/index.html", groups=all_groups, error="Время выполнения работы еще не наступило")
 
@@ -120,7 +120,9 @@ def start():
             # Продолжаем код ниже для создания новой попытки
         elif lab.is_test and lab.test_duration and lab.test_duration > 0:
             elapsed = now - existing_attempt.started_at
-            if elapsed.total_seconds() >= lab.test_duration * 60:
+            max_duration_seconds = lab.test_duration * 60
+            
+            if elapsed.total_seconds() >= max_duration_seconds:
                 # Время истекло - завершаем попытку автоматически
                 existing_attempt.finished_at = now
                 existing_attempt.score = 0
@@ -147,12 +149,16 @@ def start():
                             questions_ordered.append(q)
                             break
                 
+                # Пересчитываем оставшееся время для фронтенда
+                remaining_seconds = int(max_duration_seconds - elapsed.total_seconds())
+                
                 return render_template(
                     "public/questions.html",
                     attempt=existing_attempt,
                     lab_file=lab_file,
                     questions=questions_ordered,
-                    lab=lab
+                    lab=lab,
+                    remaining_time=remaining_seconds
                 )
         else:
             # Для ЛР без таймера - просто продолжаем попытку

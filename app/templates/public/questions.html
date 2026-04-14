@@ -129,19 +129,48 @@
     const testDurationMinutes = {{ lab.test_duration or 0 }};
     const attemptId = {{ attempt.id }};
     
+    // Проверяем, передал ли сервер оставшееся время (при обновлении страницы)
+    const serverRemainingTime = {{ remaining_time if remaining_time is defined else 'null' }};
+    
     // Серверное время начала попытки (в миллисекундах)
     const serverStartTime = {{ attempt.started_at.timestamp() * 1000 }};
     
     // Ключи для localStorage
     const violationsKey = 'attempt_' + attemptId + '_violations';
+    const remainingTimeKey = 'attempt_' + attemptId + '_remaining';
     
     let tabSwitchCount = 0;
     let copyDetected = false;
     let fullscreenExitCount = 0;
+    let remainingSeconds = 0;
     
     // Получение elapsed времени в секундах (от серверного времени начала)
     function getElapsedTime() {
         return Math.floor((Date.now() - serverStartTime) / 1000);
+    }
+    
+    // Инициализация оставшегося времени
+    function initRemainingTime() {
+        if (serverRemainingTime !== null) {
+            // Сервер передал актуальное оставшееся время (первый заход или обновление после проверки на сервере)
+            remainingSeconds = serverRemainingTime;
+            // Сохраняем в localStorage для последующих обновлений
+            localStorage.setItem(remainingTimeKey, JSON.stringify({
+                value: remainingSeconds,
+                timestamp: Date.now()
+            }));
+        } else {
+            // Пытаемся получить из localStorage (при обновлении страницы без перезагрузки сервера)
+            const saved = localStorage.getItem(remainingTimeKey);
+            if (saved) {
+                const data = JSON.parse(saved);
+                const elapsedSinceSave = Math.floor((Date.now() - data.timestamp) / 1000);
+                remainingSeconds = Math.max(0, data.value - elapsedSinceSave);
+            } else {
+                // Первый запуск - берем полное время
+                remainingSeconds = testDurationMinutes * 60;
+            }
+        }
     }
     
     // Форматирование времени MM:SS
@@ -164,14 +193,21 @@
     function updateTimer() {
         if (!labIsTest || testDurationMinutes <= 0) return;
         
-        const elapsedSeconds = getElapsedTime();
-        const totalSeconds = testDurationMinutes * 60;
-        const remaining = totalSeconds - elapsedSeconds;
+        // Уменьшаем оставшееся время каждую секунду
+        if (remainingSeconds > 0) {
+            remainingSeconds--;
+        }
+        
+        // Сохраняем текущее состояние в localStorage
+        localStorage.setItem(remainingTimeKey, JSON.stringify({
+            value: remainingSeconds,
+            timestamp: Date.now()
+        }));
         
         const timerBox = document.getElementById('timerBox');
         const timeDisplay = document.getElementById('timeRemaining');
         
-        if (remaining <= 0) {
+        if (remainingSeconds <= 0) {
             // Время истекло - автоматически отправляем форму
             timerBox.classList.add('warning');
             timeDisplay.textContent = '00:00';
@@ -181,10 +217,10 @@
         }
         
         timerBox.style.display = 'block';
-        timeDisplay.textContent = formatTime(remaining);
+        timeDisplay.textContent = formatTime(remainingSeconds);
         
         // Предупреждение за 5 минут до конца
-        if (remaining <= 300) {
+        if (remainingSeconds <= 300) {
             timerBox.classList.add('warning');
         }
     }
@@ -266,6 +302,9 @@
     }
     
     if (labIsTest) {
+        // Инициализируем оставшееся время
+        initRemainingTime();
+        
         trackTabSwitches();
         trackCopy();
         trackFullscreen();
@@ -310,6 +349,7 @@
             
             // Очищаем localStorage
             localStorage.removeItem(violationsKey);
+            localStorage.removeItem(remainingTimeKey);
         }
     });
 })();
