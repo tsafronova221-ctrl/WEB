@@ -90,21 +90,39 @@ def start():
         db.session.commit()
 
     # === ПРОВЕРКА НА АКТИВНУЮ ПОПЫТКУ ===
-    # Ищем незавершенную попытку для этого студента и этой работы
+    # Ищем любую попытку для этого студента и этой работы (с этим паролем)
     existing_attempt = Attempt.query.filter_by(
         student_id=student.id,
         lab_id=lab.id,
         password_id=lp.id
-    ).filter(Attempt.finished_at == None).first()
+    ).first()
     
     if existing_attempt:
-        # Если есть активная попытка - проверяем, не истекло ли время
-        if lab.is_test and lab.test_duration and lab.test_duration > 0:
-            from datetime import timedelta
-            elapsed = datetime.utcnow() - existing_attempt.started_at
+        # Если есть любая попытка - проверяем её статус
+        if existing_attempt.finished_at is not None:
+            # Попытка уже завершена - нельзя начать новую
+            return render_template(
+                "public/index.html",
+                groups=all_groups,
+                error="Вы уже выполняли эту работу. Повторная попытка невозможна.",
+            )
+        
+        # Попытка активна (finished_at == None) - проверяем время
+        from datetime import timedelta
+        now = datetime.utcnow()
+        
+        # Если попытка была начата очень давно (больше 24 часов назад), считаем её "заброшенной"
+        # и разрешаем создать новую (это защита от зависших попыток)
+        if (now - existing_attempt.started_at).total_seconds() > 24 * 3600:
+            # Удаляем старую заброшенную попытку и создаем новую
+            db.session.delete(existing_attempt)
+            db.session.commit()
+            # Продолжаем код ниже для создания новой попытки
+        elif lab.is_test and lab.test_duration and lab.test_duration > 0:
+            elapsed = now - existing_attempt.started_at
             if elapsed.total_seconds() >= lab.test_duration * 60:
                 # Время истекло - завершаем попытку автоматически
-                existing_attempt.finished_at = datetime.utcnow()
+                existing_attempt.finished_at = now
                 existing_attempt.score = 0
                 db.session.commit()
                 # Возвращаем ошибку, что время вышло
@@ -113,29 +131,52 @@ def start():
                     groups=all_groups,
                     error="Время на выполнение работы истекло. Вы не можете начать новую попытку.",
                 )
-        
-        # Если время еще есть - перенаправляем на продолжение
-        lab_file = LabFile.query.get(lp.file_id)
-        
-        # Получаем вопросы для этой попытки
-        question_ids = [answer.question_id for answer in existing_attempt.answers]
-        questions = Question.query.filter(Question.id.in_(question_ids)).all()
-        
-        # Сохраняем порядок вопросов как в attempt.answers
-        questions_ordered = []
-        for ans in existing_attempt.answers:
-            for q in questions:
-                if q.id == ans.question_id:
-                    questions_ordered.append(q)
-                    break
-        
-        return render_template(
-            "public/questions.html",
-            attempt=existing_attempt,
-            lab_file=lab_file,
-            questions=questions_ordered,
-            lab=lab
-        )
+            else:
+                # Если время еще есть - перенаправляем на продолжение
+                lab_file = LabFile.query.get(lp.file_id)
+                
+                # Получаем вопросы для этой попытки
+                question_ids = [answer.question_id for answer in existing_attempt.answers]
+                questions = Question.query.filter(Question.id.in_(question_ids)).all()
+                
+                # Сохраняем порядок вопросов как в attempt.answers
+                questions_ordered = []
+                for ans in existing_attempt.answers:
+                    for q in questions:
+                        if q.id == ans.question_id:
+                            questions_ordered.append(q)
+                            break
+                
+                return render_template(
+                    "public/questions.html",
+                    attempt=existing_attempt,
+                    lab_file=lab_file,
+                    questions=questions_ordered,
+                    lab=lab
+                )
+        else:
+            # Для ЛР без таймера - просто продолжаем попытку
+            lab_file = LabFile.query.get(lp.file_id)
+            
+            # Получаем вопросы для этой попытки
+            question_ids = [answer.question_id for answer in existing_attempt.answers]
+            questions = Question.query.filter(Question.id.in_(question_ids)).all()
+            
+            # Сохраняем порядок вопросов как в attempt.answers
+            questions_ordered = []
+            for ans in existing_attempt.answers:
+                for q in questions:
+                    if q.id == ans.question_id:
+                        questions_ordered.append(q)
+                        break
+            
+            return render_template(
+                "public/questions.html",
+                attempt=existing_attempt,
+                lab_file=lab_file,
+                questions=questions_ordered,
+                lab=lab
+            )
     # ====================================
 
     lab_file = LabFile.query.get(lp.file_id)
