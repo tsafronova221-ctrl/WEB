@@ -5,6 +5,10 @@ from app.models import Group, Lab, LabFile, Question, FileQuestionAnswer
 import base64
 import os
 from datetime import datetime
+import pytz
+
+# Часовой пояс Москвы
+MSK = pytz.timezone('Europe/Moscow')
 
 
 @admin_labs_bp.route("/create_labs")
@@ -28,14 +32,25 @@ def create_lab():
     questions_count = int(data.get('questions_count', 0))
 
     # 1. создаём ЛР
+    # Парсим даты с учетом часового пояса Москвы
+    start_dt = datetime.fromisoformat(start_date)
+    deadline_dt = datetime.fromisoformat(deadline)
+    
+    # Если даты без timezone info, считаем что это время по Москве
+    if start_dt.tzinfo is None:
+        start_dt = MSK.localize(start_dt)
+    if deadline_dt.tzinfo is None:
+        deadline_dt = MSK.localize(deadline_dt)
+    
     lab = Lab(
         title=lab_name,
-        code=f"LAB-{int(datetime.utcnow().timestamp())}",
+        code=f"LAB-{int(datetime.now(MSK).timestamp())}",
         description=description,
-        start_at=datetime.fromisoformat(start_date),
-        deadline_at=datetime.fromisoformat(deadline),
+        start_at=start_dt,
+        deadline_at=deadline_dt,
         is_test=is_test,  # Сохраняем тип
-        questions_count=questions_count  # Сохраняем кол-во вопросов
+        questions_count=questions_count,  # Сохраняем кол-во вопросов
+        test_duration=int(data.get('test_duration', 0))  # Сохраняем длительность теста
     )
 
     # Привязка групп

@@ -6,6 +6,10 @@ import base64
 import os
 import xml.etree.ElementTree as ET
 from datetime import datetime
+import pytz
+
+# Часовой пояс Москвы
+MSK = pytz.timezone('Europe/Moscow')
 
 
 import secrets
@@ -107,10 +111,20 @@ def update_lab(lab_id):
     lab = Lab.query.get_or_404(lab_id)
 
     # Обновляем основную информацию
+    # Парсим даты с учетом часового пояса Москвы
+    start_dt = datetime.fromisoformat(data['start_date'])
+    deadline_dt = datetime.fromisoformat(data['deadline'])
+    
+    # Если даты без timezone info, считаем что это время по Москве
+    if start_dt.tzinfo is None:
+        start_dt = MSK.localize(start_dt)
+    if deadline_dt.tzinfo is None:
+        deadline_dt = MSK.localize(deadline_dt)
+    
     lab.title = data['name']
     lab.description = data['description']
-    lab.start_at = datetime.fromisoformat(data['start_date'])
-    lab.deadline_at = datetime.fromisoformat(data['deadline'])
+    lab.start_at = start_dt
+    lab.deadline_at = deadline_dt
     lab.is_test = data.get('is_test', False)
     lab.questions_count = int(data.get('questions_count', 0))
     lab.test_duration = int(data.get('test_duration', 0))
