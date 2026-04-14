@@ -15,6 +15,10 @@ from app.models import (
 )
 from app.security import generate_watermark_hash
 from datetime import datetime
+import pytz
+
+# Часовой пояс Москвы
+MSK = pytz.timezone('Europe/Moscow')
 
 public_bp = Blueprint("public", __name__)
 
@@ -64,7 +68,7 @@ def start():
     # -------------------------------------
     
     # Проверка дедлайнов (перенес выше, до создания студента)
-    now = datetime.utcnow()  # Используем utcnow везде для консистентности
+    now = datetime.now(MSK)  # Используем московское время для всех проверок
     if lab.start_at and lab.start_at > now:
         return render_template("public/index.html", groups=all_groups, error="Время выполнения работы еще не наступило")
 
@@ -109,7 +113,7 @@ def start():
         
         # Попытка активна (finished_at == None) - проверяем время
         from datetime import timedelta
-        now = datetime.utcnow()
+        now = datetime.now(MSK)  # Используем московское время
         
         # Если попытка была начата очень давно (больше 24 часов назад), считаем её "заброшенной"
         # и разрешаем создать новую (это защита от зависших попыток)
@@ -126,9 +130,6 @@ def start():
             
             if elapsed.total_seconds() >= max_duration_seconds:
                 # Время истекло - завершаем попытку автоматически с сохранением нарушений
-                # Получаем данные о нарушениях из localStorage через JavaScript невозможно,
-                # поэтому берем то, что уже могло быть сохранено ранее (если было обновление)
-                # В данном случае просто фиксируем факт истечения времени
                 existing_attempt.finished_at = now
                 existing_attempt.score = 0
                 db.session.commit()
@@ -199,7 +200,7 @@ def start():
         password_id=lp.id,
         ip=request.remote_addr,
         user_agent=request.headers.get("User-Agent"),
-        started_at=datetime.utcnow(),
+        started_at=datetime.now(MSK),  # Используем московское время
     )
     db.session.add(attempt)
     db.session.flush()  # flush, чтобы получить attempt.id до коммита
@@ -308,7 +309,7 @@ def finish(attempt_id):
         answer_record.is_correct = is_correct
 
     attempt.score = score
-    attempt.finished_at = datetime.utcnow()
+    attempt.finished_at = datetime.now(MSK)  # Используем московское время
     attempt.watermark_hash = generate_watermark_hash(attempt)
     db.session.commit()
 
@@ -339,7 +340,7 @@ def auto_finish(attempt_id):
     
     # Завершаем попытку с нулевым баллом (так как время вышло)
     attempt.score = 0
-    attempt.finished_at = datetime.utcnow()
+    attempt.finished_at = datetime.now(MSK)  # Используем московское время
     attempt.watermark_hash = generate_watermark_hash(attempt)
     db.session.commit()
     
